@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "name": "AVR",
+            "includePath": [
+                "${env:ARDUINO_PATH}/hardware/tools/avr/avr/include/",
+                "${env:ARDUINO_PATH}/hardware/arduino/avr/",
+                "${env:ARDUINO_PATH}/hardware/arduino/avr/cores/arduino",
+                "${env:ARDUINO_PATH}/hardware/arduino/avr/variants/standard"
+            ],
+            "windowsSdkVersion": "10.0.18362.0",
+            "compilerPath": "${env:ARDUINO_PATH}/hardware/tools/avr/bin/avr-gcc.exe",
+            "intelliSenseMode": "${default}",
+            "defines": [
+                "F_CPU=16000000L",
+                "ARDUINO_ARCH_AVR",
+                "UBRRH",
+                "__AVR_ATmega8A__",
+                "__cplusplus",
+                "ARDUINO=105",
+                "ARDUINO_AVR_UNO"
+            ],
+            "cStandard": "gnu11",
+            "cppStandard": "gnu++11"
+        }
+    ],
+    "version": 4
+}
