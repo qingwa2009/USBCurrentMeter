@@ -37,7 +37,7 @@ size_t MySSD1306::write(uint8_t c)
             cursorY = 0;
         return 1;
     }
-    drawChar(CURSORX_TO_X(cursorX), CURSORY_TO_Y(cursorY), c, 1, WHITE);
+    printChar(c, WHITE);
 
     cursorX++;
     if (cursorX > MAX_CURSOR_X)
@@ -460,6 +460,31 @@ void MySSD1306::drawChar(int16_t x, int16_t y, uint8_t c, int8_t scale, enum Col
                 fillRect(x, y + j * scale, scale, scale, color);
         }
         x += scale;
+    }
+}
+
+void MySSD1306::printChar(uint8_t c, enum Color color)
+{
+    uint16_t offset = cursorY * SCREEN_W + cursorX * (FONT_W + 1);
+    uint16_t cc = c * 5;
+    for (uint8_t i = 0; i < FONT_W; i++)
+    {
+        uint16_t ind = offset + i;
+        uint8_t v = pgm_read_byte(&font[cc + i]);
+        switch (color)
+        {
+        case WHITE:
+            buffer[ind] |= v;
+            break;
+        case BLACK:
+            buffer[ind] &= ~v;
+            break;
+        case INVERSE:
+            buffer[ind] ^= v;
+            break;
+        default:
+            break;
+        }
     }
 }
 

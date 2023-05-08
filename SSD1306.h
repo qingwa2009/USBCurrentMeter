@@ -52,6 +52,7 @@ extern "C"
     private:
         uint8_t cursorX = 0;
         uint8_t cursorY = 0;
+        void printChar(uint8_t c, enum Color color);
 
     public:
         void init();

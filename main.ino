@@ -35,6 +35,9 @@ float curPerBit;
 
 unsigned long t0;
 unsigned long st;
+unsigned long lastPressTime;
+uint8_t isSleeping;
+
 float ph = 0, ih = 0;
 
 uint8_t mode;
@@ -51,6 +54,8 @@ void reset()
     ih = 0;
     t0 = millis();
     st = t0;
+    lastPressTime = t0;
+    isSleeping = 0;
 
     index = 0;
     preBtns = SCAN_BTNS();
@@ -110,24 +115,50 @@ void setup()
 
 float convertUnit(float v, float precision, char *unit)
 {
+    uint8_t isNeg = 0;
+    if (v < 0.0)
+    {
+        v = -v;
+        isNeg = 1;
+    }
 
-    if (v < precision && v > -precision)
+    if (v < precision)
     {
         *unit = ' ';
-        return 0;
+        v = 0.0;
     }
-    if (v < 0.001)
+    else if (v < 0.001)
     {
         *unit = 'u';
-        return v * 1E6;
+        v *= 1E6;
     }
-    if (v < 1)
+    else if (v < 1)
     {
         *unit = 'm';
-        return v * 1E3;
+        v *= 1E3;
     }
-    *unit = ' ';
-    return v;
+    else
+    {
+        *unit = ' ';
+    }
+    return isNeg ? -v : v;
+}
+
+uint8_t getFloatCharLen(float v)
+{
+    uint8_t n = 0;
+    if (v < 0.0)
+    {
+        n = 1;
+        v = -v;
+    }
+    if (v >= 1000.0)
+        return n + 7;
+    if (v >= 100.0)
+        return n + 6;
+    if (v >= 10.0)
+        return n + 5;
+    return n + 4;
 }
 uint8_t animoffset;
 
@@ -147,37 +178,35 @@ void loop()
     float busValue, shuntValue, powValue, currentValue;
     if (INA219_ReadValueF(curPerBit, &busValue, &shuntValue, &powValue, &currentValue))
     {
-        lcd.setCursor(0, 0);
         // lcd.print("Shunt V(mV): ");
         // lcd.println(shuntValue * 1000);
-        // char sss[] = " mV: -000.00\r\n"
-        //              " mA: -000.00\r\n"
-        //              "mWh: -000.00\r\n"
-        //              "mAh: -000.00\r\n";
+        lcd.setCursor(0, 0);
         char unit;
         busValue = convertUnit(busValue, 0.001, &unit);
-        lcd.print(' ');
-        lcd.print(unit);
-        lcd.print("V: ");
-        lcd.println(busValue);
+        lcd.print(" V:");
+        lcd.setCursorX(max(10 - getFloatCharLen(busValue), 3));
+        lcd.print(busValue);
+        lcd.println(unit);
 
         ih += currentValue * dth;
         currentValue = convertUnit(currentValue, 0.000001, &unit);
-        lcd.print(' ');
-        lcd.print(unit);
-        lcd.print("A: ");
-        lcd.println(currentValue);
+        lcd.print(" A:");
+        lcd.setCursorX(max(10 - getFloatCharLen(currentValue), 3));
+        lcd.print(currentValue);
+        lcd.println(unit);
 
         ph += powValue * dth;
         powValue = convertUnit(ph, 0.000001, &unit);
-        lcd.print(unit);
-        lcd.print("Wh: ");
-        lcd.println(powValue);
+        lcd.print("Wh:");
+        lcd.setCursorX(max(10 - getFloatCharLen(powValue), 3));
+        lcd.print(powValue);
+        lcd.println(unit);
 
         powValue = convertUnit(ih, 0.000001, &unit);
-        lcd.print(unit);
-        lcd.print("Ah: ");
-        lcd.println(powValue);
+        lcd.print("Ah:");
+        lcd.setCursorX(max(10 - getFloatCharLen(powValue), 3));
+        lcd.print(powValue);
+        lcd.println(unit);
 
         char ss[] = "00:00:00";
         unsigned long ttt = (t1 - st) / 1000;
@@ -203,6 +232,7 @@ void loop()
     uint8_t btns = SCAN_BTNS();
     if (btns != preBtns)
     {
+        lastPressTime = t1;
         if (btns == 0b11)
         {
             switch (index)
@@ -269,16 +299,14 @@ void loop()
     {
         if ((btns == 0b01 && screenDir == 0) || (btns == 0b10 && screenDir == 2))
         {
-            br++;
-            if (br > 254)
-                br = 254;
+            if (br > 0)
+                br--;
             lcd.setContrast(br);
         }
         else if ((btns == 0b10 && screenDir == 0) || (btns == 0b01 && screenDir == 2))
         {
-            br--;
-            if (br < 1)
-                br = 1;
+            if (br < 254)
+                br++;
             lcd.setContrast(br);
         }
     }
@@ -291,17 +319,61 @@ void loop()
     uint8_t xx[] = {13, 13, 13};
     xx[index] = 14;
     lcd.setCursor(xx[0], 1);
+    //重置
     lcd.print("Reset");
     lcd.setCursor(xx[1], 2);
+    //设置屏幕旋转
     lcd.print("Rotate");
     lcd.setCursor(xx[2], 3);
+    //设置亮度
     lcd.print("\x0f:");
     if (mode == 1)
-        lcd.print((char)25);
+    {
+        if (br < 254)
+            // lcd.print((char)24);
+            lcd.print((char)(animoffset + 128));
+        else
+            lcd.print('_');
+    }
     lcd.print(br);
     if (mode == 1)
-        lcd.print((char)24);
-
+    {
+        if (br > 1)
+            lcd.print((char)(animoffset + 128 + 11));
+        else
+            lcd.print('_');
+    }
+    // lcd.print(dt);
+    //
+    //n分钟无按键按下，进入休眠
+    static uint8_t saveBr;
+    if ((t1 - lastPressTime) > (3 * 60 * 1000UL) && btns == 0b00)
+    {
+        //刚进入休眠
+        if (!isSleeping)
+        {
+            isSleeping = 1;
+            saveBr = br;
+            //如果处于编辑亮度模式，保存亮度，退出编辑模式
+            if (mode == 1)
+            {
+                eeprom_write_byte((uint8_t *)1, br);
+                mode = 0;
+            }
+        }
+        //休眠亮度降低到0
+        if (br > 0)
+            br--;
+        lcd.setContrast(br);
+    }
+    else if (isSleeping)
+    {
+        //退出休眠
+        br = saveBr;
+        lcd.setContrast(br);
+        isSleeping = 0;
+    }
     lcd.display();
+
     // delay(10);
 }
