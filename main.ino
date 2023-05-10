@@ -32,6 +32,8 @@ float curPerBit;
 #define B1 1
 
 #define MAX_INDEX 2
+#define SLEEP_TIME_BR_DOWN 3 * 60 * 1000UL      //自动降低亮度时间
+#define SLEEP_TIME_SCREEN_SAVE 10 * 60 * 1000UL //自动屏保时间
 
 unsigned long t0;
 unsigned long st;
@@ -169,60 +171,114 @@ void loop()
 
     unsigned long t1 = millis();
     uint32_t dt = t1 - t0;
-    float dth = ((float)dt / (1000.0 * 3600.0));
 
     // TWIScanDevices();
-    // DBG_L("Hello World!");
-    lcd.clear(0);
 
     float busValue, shuntValue, powValue, currentValue;
     if (INA219_ReadValueF(curPerBit, &busValue, &shuntValue, &powValue, &currentValue))
     {
-        // lcd.print("Shunt V(mV): ");
-        // lcd.println(shuntValue * 1000);
-        lcd.setCursor(0, 0);
-        char unit;
-        busValue = convertUnit(busValue, 0.001, &unit);
-        lcd.print(" V:");
-        lcd.setCursorX(max(10 - getFloatCharLen(busValue), 3));
-        lcd.print(busValue);
-        lcd.println(unit);
-
-        ih += currentValue * dth;
-        currentValue = convertUnit(currentValue, 0.000001, &unit);
-        lcd.print(" A:");
-        lcd.setCursorX(max(10 - getFloatCharLen(currentValue), 3));
-        lcd.print(currentValue);
-        lcd.println(unit);
-
-        ph += powValue * dth;
-        powValue = convertUnit(ph, 0.000001, &unit);
-        lcd.print("Wh:");
-        lcd.setCursorX(max(10 - getFloatCharLen(powValue), 3));
-        lcd.print(powValue);
-        lcd.println(unit);
-
-        powValue = convertUnit(ih, 0.000001, &unit);
-        lcd.print("Ah:");
-        lcd.setCursorX(max(10 - getFloatCharLen(powValue), 3));
-        lcd.print(powValue);
-        lcd.println(unit);
-
-        char ss[] = "00:00:00";
-        unsigned long ttt = (t1 - st) / 1000;
-        uint8_t tttt = (ttt / 3600); // % 24;
-        ss[0] = '0' + tttt / 10;
-        ss[1] = '0' + tttt % 10;
-        tttt = (ttt / 60) % 60;
-        ss[3] = '0' + tttt / 10;
-        ss[4] = '0' + tttt % 10;
-        tttt = ttt % 60;
-        ss[6] = '0' + tttt / 10;
-        ss[7] = '0' + tttt % 10;
-        lcd.setCursor(13, 0);
-        lcd.print(ss);
-
+        float dth = ((float)dt / (1000.0 * 3600.0));
+        ih += currentValue * dth; //Ah
+        ph += powValue * dth;     //Wh
         t0 = t1;
+
+        lcd.clear(0);
+
+        if (!isSleeping || (isSleeping && (t1 - lastPressTime) < (SLEEP_TIME_SCREEN_SAVE)))
+        {
+            lcd.setCursor(0, 0);
+            char unit;
+            busValue = convertUnit(busValue, 0.001, &unit);
+            lcd.print(" V:");
+            lcd.setCursorX(max(10 - getFloatCharLen(busValue), 3));
+            lcd.print(busValue);
+            lcd.println(unit);
+
+            currentValue = convertUnit(currentValue, 0.000001, &unit);
+            lcd.print(" A:");
+            lcd.setCursorX(max(10 - getFloatCharLen(currentValue), 3));
+            lcd.print(currentValue);
+            lcd.println(unit);
+
+            powValue = convertUnit(ph, 0.000001, &unit);
+            lcd.print("Wh:");
+            lcd.setCursorX(max(10 - getFloatCharLen(powValue), 3));
+            lcd.print(powValue);
+            lcd.println(unit);
+
+            powValue = convertUnit(ih, 0.000001, &unit);
+            lcd.print("Ah:");
+            lcd.setCursorX(max(10 - getFloatCharLen(powValue), 3));
+            lcd.print(powValue);
+            lcd.println(unit);
+
+            char ss[] = "00:00:00";
+            unsigned long ttt = (t1 - st) / 1000;
+            uint8_t tttt = (ttt / 3600); // % 24;
+            ss[0] = '0' + tttt / 10;
+            ss[1] = '0' + tttt % 10;
+            tttt = (ttt / 60) % 60;
+            ss[3] = '0' + tttt / 10;
+            ss[4] = '0' + tttt % 10;
+            tttt = ttt % 60;
+            ss[6] = '0' + tttt / 10;
+            ss[7] = '0' + tttt % 10;
+            lcd.setCursor(13, 0);
+            lcd.print(ss);
+
+            if (mode == 0)
+            {
+                lcd.setCursor(13, index + 1);
+                lcd.print((char)animoffset);
+            }
+            uint8_t xx[] = {13, 13, 13};
+            xx[index] = 14;
+            lcd.setCursor(xx[0], 1);
+            //重置
+            lcd.print("Reset");
+            lcd.setCursor(xx[1], 2);
+            //设置屏幕旋转
+            lcd.print("Rotate");
+            lcd.setCursor(xx[2], 3);
+            //设置亮度
+            lcd.print("\x0f:");
+            if (mode == 1)
+            {
+                if (br < 254)
+                    // lcd.print((char)24);
+                    lcd.print((char)(animoffset + 0x14));
+                else
+                    lcd.print('_');
+            }
+            lcd.print(br);
+            if (mode == 1)
+            {
+                if (br > 1)
+                    lcd.print((char)(animoffset + 0x14 + 13));
+                else
+                    lcd.print('_');
+            }
+        }
+        else
+        {
+            //屏保模式
+            // static uint8_t offset = 0;
+            // offset++;
+            // offset %= SSD1306_LCD_WIDTH;
+            static uint8_t offset2 = 0;
+            offset2 += 2;
+            offset2 %= SSD1306_LCD_WIDTH;
+            for (uint8_t i = 0; i < SSD1306_LCD_WIDTH; i++)
+            {
+                uint8_t y = lcd.getFontByte(128 * 5 + i);
+                lcd.drawPixel((i + offset2) % SSD1306_LCD_WIDTH, y, WHITE);
+                lcd.drawPixel(SSD1306_LCD_WIDTH - 1 - (i + offset2) % SSD1306_LCD_WIDTH, y, WHITE);
+            }
+        }
+        // lcd.setCursor(11, 3);
+        // lcd.print(dt);
+
+        lcd.display();
     }
     else
     {
@@ -311,43 +367,9 @@ void loop()
         }
     }
 
-    if (mode == 0)
-    {
-        lcd.setCursor(13, index + 1);
-        lcd.print((char)animoffset);
-    }
-    uint8_t xx[] = {13, 13, 13};
-    xx[index] = 14;
-    lcd.setCursor(xx[0], 1);
-    //重置
-    lcd.print("Reset");
-    lcd.setCursor(xx[1], 2);
-    //设置屏幕旋转
-    lcd.print("Rotate");
-    lcd.setCursor(xx[2], 3);
-    //设置亮度
-    lcd.print("\x0f:");
-    if (mode == 1)
-    {
-        if (br < 254)
-            // lcd.print((char)24);
-            lcd.print((char)(animoffset + 128));
-        else
-            lcd.print('_');
-    }
-    lcd.print(br);
-    if (mode == 1)
-    {
-        if (br > 1)
-            lcd.print((char)(animoffset + 128 + 11));
-        else
-            lcd.print('_');
-    }
-    // lcd.print(dt);
-    //
     //n分钟无按键按下，进入休眠
     static uint8_t saveBr;
-    if ((t1 - lastPressTime) > (3 * 60 * 1000UL) && btns == 0b00)
+    if ((t1 - lastPressTime) > (SLEEP_TIME_BR_DOWN) && btns == 0b00)
     {
         //刚进入休眠
         if (!isSleeping)
@@ -373,7 +395,6 @@ void loop()
         lcd.setContrast(br);
         isSleeping = 0;
     }
-    lcd.display();
 
     // delay(10);
 }

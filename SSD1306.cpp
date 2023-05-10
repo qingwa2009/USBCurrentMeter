@@ -453,7 +453,7 @@ void MySSD1306::drawChar(int16_t x, int16_t y, uint8_t c, int8_t scale, enum Col
     uint16_t ind = c * 5;
     for (uint8_t i = 0; i < FONT_W; i++)
     {
-        uint8_t t = pgm_read_byte(&font[ind + i]);
+        uint8_t t = getFontByte(ind + i);
         for (uint8_t j = 0; j < 8; j++)
         {
             if ((t >> j) & 0x01)
@@ -462,7 +462,10 @@ void MySSD1306::drawChar(int16_t x, int16_t y, uint8_t c, int8_t scale, enum Col
         x += scale;
     }
 }
-
+uint8_t MySSD1306::getFontByte(uint16_t index)
+{
+    return pgm_read_byte(&font[index]);
+}
 void MySSD1306::printChar(uint8_t c, enum Color color)
 {
     uint16_t offset = cursorY * SCREEN_W + cursorX * (FONT_W + 1);
@@ -470,7 +473,7 @@ void MySSD1306::printChar(uint8_t c, enum Color color)
     for (uint8_t i = 0; i < FONT_W; i++)
     {
         uint16_t ind = offset + i;
-        uint8_t v = pgm_read_byte(&font[cc + i]);
+        uint8_t v = getFontByte(cc + i);
         switch (color)
         {
         case WHITE:
@@ -585,4 +588,35 @@ void MySSD1306::display()
     else
     {
     }
+}
+/**
+ * rowStart, rowEnd: 0~3
+ * framePerScroll: 
+ * 000b – 5 frames
+ * 001b – 64 frames
+ * 010b – 128 frames
+ * 011b – 256 frames
+ * 100b – 3 frames
+ * 101b – 4 frames
+ * 110b – 25 frame
+ * 111b – 2 frame
+*/
+void MySSD1306::scrollConfigHorizontal(uint8_t isScrollLeft, uint8_t rowStart, uint8_t rowEnd, uint8_t framePerScroll)
+{
+    _writeCmd(isScrollLeft ? 0x27 : 0x26);
+    _writeCmd(0x00);
+    _writeCmd(rowStart);
+    _writeCmd(framePerScroll);
+    _writeCmd(rowEnd);
+    _writeCmd(0x00);
+    _writeCmd(0xFF);
+}
+
+void MySSD1306::scrollEnd()
+{
+    _writeCmd(0x2E);
+}
+void MySSD1306::scrollStart()
+{
+    _writeCmd(0x2F);
 }

@@ -77,6 +77,10 @@ extern "C"
         void setCursorY(uint8_t y);
         void setCursor(uint8_t x, uint8_t y);
         virtual size_t write(uint8_t c);
+        void scrollEnd();
+        void scrollStart();
+        void scrollConfigHorizontal(uint8_t isScrollLeft, uint8_t rowStart, uint8_t rowEnd, uint8_t framePerScroll);
+        uint8_t getFontByte(uint16_t index);
     };
 #ifdef __cplusplus
 }
