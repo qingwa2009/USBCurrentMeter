@@ -32,8 +32,9 @@ float curPerBit;
 #define B1 1
 
 #define MAX_INDEX 2
-#define SLEEP_TIME_BR_DOWN 3 * 60 * 1000UL      //自动降低亮度时间
-#define SLEEP_TIME_SCREEN_SAVE 10 * 60 * 1000UL //自动屏保时间
+#define SLEEP_TIME_BR_DOWN 3 * 60 * 1000UL         //自动降低亮度时间
+#define SLEEP_TIME_SCREEN_SAVE 10 * 60 * 1000UL    //自动屏保时间
+#define SLEEP_TIME_SCREEN_SAVE_MAX 5 * 60 * 1000UL //自动屏保时间
 
 unsigned long t0;
 unsigned long st;
@@ -184,7 +185,7 @@ void loop()
 
         lcd.clear(0);
 
-        if (!isSleeping || (isSleeping && (t1 - lastPressTime) < (SLEEP_TIME_SCREEN_SAVE)))
+        if (!isSleeping || (isSleeping && (t1 - lastPressTime) % (SLEEP_TIME_SCREEN_SAVE_MAX + SLEEP_TIME_SCREEN_SAVE) < (SLEEP_TIME_SCREEN_SAVE)))
         {
             lcd.setCursor(0, 0);
             char unit;
@@ -254,7 +255,7 @@ void loop()
             if (mode == 1)
             {
                 if (br > 1)
-                    lcd.print((char)(animoffset + 0x14 + 13));
+                    lcd.print((char)(animoffset + 128));
                 else
                     lcd.print('_');
             }
@@ -262,17 +263,28 @@ void loop()
         else
         {
             //屏保模式
-            // static uint8_t offset = 0;
-            // offset++;
-            // offset %= SSD1306_LCD_WIDTH;
+            static uint8_t offset = 0;
+            offset++;
+            offset %= SSD1306_LCD_WIDTH;
             static uint8_t offset2 = 0;
             offset2 += 2;
             offset2 %= SSD1306_LCD_WIDTH;
+            uint8_t ind = 0;
             for (uint8_t i = 0; i < SSD1306_LCD_WIDTH; i++)
             {
-                uint8_t y = lcd.getFontByte(128 * 5 + i);
-                lcd.drawPixel((i + offset2) % SSD1306_LCD_WIDTH, y, WHITE);
+                uint8_t y = lcd.getFontByte((128 + 11) * 5 + ind);
+                if (i > 64)
+                {
+                    y = y < 30 ? 30 - y : 0;
+                }
+
+                lcd.drawPixel((i + offset) % SSD1306_LCD_WIDTH, y, WHITE);
                 lcd.drawPixel(SSD1306_LCD_WIDTH - 1 - (i + offset2) % SSD1306_LCD_WIDTH, y, WHITE);
+
+                if ((i / 32) & 0b01)
+                    ind--;
+                else
+                    ind++;
             }
         }
         // lcd.setCursor(11, 3);
